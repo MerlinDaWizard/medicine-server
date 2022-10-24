@@ -7,8 +7,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dispensers.db'
 # init db
 
 db = SQLAlchemy(app) # db. = sa. but sa gives annotations
-with app.app_context():
-    db.create_all()
+
 #db.init_app(app)
 
 
@@ -18,8 +17,8 @@ class Dispensers(db.Model):
 
     id = sa.Column(sa.Integer, primary_key=True)
     passkey = sa.Column(sa.String(10), nullable=False)
-    times = db.relationship("ScheduleTimes", back_populates="dispensers")
-    latest_connection = sa.Column(sa.Time, nullable=False)
+    times = db.relationship("ScheduleTimes", backref="dispensers_table")
+    latest_connection = sa.Column(sa.DateTime, nullable=False)
 
     def __repr__(self) -> str:
         return f"<name {self.id}>"
@@ -29,10 +28,7 @@ class ScheduleTimes(db.Model):
     __tablename__ = "schedule_times_table"
 
     id = sa.Column(sa.Integer, primary_key=True)
-
     dispenser_id = sa.Column(sa.Integer, sa.ForeignKey("dispensers_table.id"))
-    dispenser = db.relationship("Dispensers", back_populates="schedule_times")
-
     time = sa.Column(sa.Time, nullable=False)
 
     def __repr__(self) -> str:
@@ -66,6 +62,7 @@ def times():
         ### Error because db.session.get refers to the `schedule_times_table` instead of the main `dispensers_table`
         if (dispenser:= db.session.get(Dispensers, id)) == None:
             return 'Invalid dispenser id'
+        
         if (dispenser.passkey != passkey):
             return 'Invalid id & passkey combo'
         
@@ -73,3 +70,7 @@ def times():
 
     elif request.method == 'POST':
         return 'NYI'
+
+
+with app.app_context():
+    db.create_all()
