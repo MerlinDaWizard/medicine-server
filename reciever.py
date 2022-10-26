@@ -90,7 +90,9 @@ def times():
         #print(type(times))
         times_dict = []
         for t in times:
-            times_dict.append(t[0].as_dict())
+            temp_dict = t[0].as_dict()
+            temp_dict.pop('dispenser_id')
+            times_dict.append(temp_dict)
             #print(f"{t[0].id=}")
             #print(f"{t[0].time=}")
         #print(times_dict)
