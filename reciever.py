@@ -90,9 +90,9 @@ def times():
         #print(type(times))
         times_dict = []
         for t in times:
-            #times_dict.append(t[0].as_dict())
-            print(f"{t[0].id=}")
-            print(f"{t[0].time=}")
+            times_dict.append(t[0].as_dict())
+            #print(f"{t[0].id=}")
+            #print(f"{t[0].time=}")
         #print(times_dict)
         return jsonify(times_dict)
 
