@@ -85,6 +85,15 @@ def times():
         dispenser = dispenser_or_err
 
     if request.method == 'GET':
+        # If its a request from the physical hardware, mark the latest connection in the database
+        if request.values.get('type') == 'automatic':
+            dispenser.latest_connection = datetime.now() # May be an issue with timezones here
+            try:
+                db.session.add(dispenser)
+                db.session.commit()
+            except:
+                print("ERROR: cannot commit latest connection info")
+
         statement = sa.select(ScheduleTime).filter_by(dispenser_id=dispenser.id)
         times = db.session.execute(statement).all()
         #print(type(times))
