@@ -48,24 +48,26 @@ def times():
     if request.method == 'GET':
         # py 3.8 assign and use
         print(request.values)
+        
+        # Check if users request has the dispenser id
         if (str_id := request.values.get('id')) == None:
             return 'No ID provided'
 
+        # Attempt to decode dispenser id to base10 from str hex
         try:
             id = int(str_id,16)
         except:
             return 'Invalid dispenser id format'
-
+        # Check if users request has the passkey
         if (passkey := request.values.get('pass')) == None:
             return 'No pass provided'
-        
-        ### Error because db.session.get refers to the `schedule_times_table` instead of the main `dispensers_table`
+        # Check if the dispenser id matches an existing dispenser
         if (dispenser:= db.session.get(Dispensers, id)) == None:
             return 'Invalid dispenser id'
-        
+        # Check if the actual dispenser's key matches that provided by the user
         if (dispenser.passkey != passkey):
             return 'Invalid id & passkey combo'
-        
+        # All success = attempt to 
         return 'success'
 
     elif request.method == 'POST':
