@@ -1,11 +1,21 @@
-from flask import Flask, request, Request
+from flask import Flask, request, Request, jsonify
+from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime,time
 import sqlalchemy as sa
+from sqlalchemy import orm
 from typing import Union
+from dataclasses import dataclass
+class datetimeJSONEncoder(JSONEncoder):
+    def default(self, o):
+        if type(o) == time:
+            return o.isoformat()
+        else:
+            return super().default(o)
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dispensers.db'
+app.json_encoder = datetimeJSONEncoder
 # init db
 
 db = SQLAlchemy(app) # db. = sa. but sa gives annotations
@@ -22,7 +32,6 @@ class Dispenser(db.Model):
     def __repr__(self) -> str:
         return f"<name {self.id}>"
 
-
 class ScheduleTime(db.Model):
     __tablename__ = "schedule_time_table"
 
@@ -32,8 +41,10 @@ class ScheduleTime(db.Model):
 
     def __repr__(self) -> str:
         return f"<name {self.id}>"
-
-
+    
+    def as_dict(self):
+       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+       
 def check_login(request: Request) -> Union[Dispenser,str]:
     '''Check info provided in request is correct to login'''
     # Check if users request has the dispenser id
@@ -66,6 +77,7 @@ def result():
 
 @app.route('/times', methods=['POST','GET'])
 def times():
+    db.session: orm.scoping.scoped_session = db.session # Helps ide autocomplete
     dispenser_or_err = check_login(request)
     if type(dispenser_or_err) is str: # If it returns a string it is an error to be sent back
         return dispenser_or_err
@@ -73,9 +85,16 @@ def times():
         dispenser = dispenser_or_err
 
     if request.method == 'GET':
-        # py 3.8 assign and use
-        print(request.values)
-        return 'success'
+        statement = sa.select(ScheduleTime).filter_by(dispenser_id=dispenser.id)
+        times = db.session.execute(statement).all()
+        #print(type(times))
+        times_dict = []
+        for t in times:
+            #times_dict.append(t[0].as_dict())
+            print(f"{t[0].id=}")
+            print(f"{t[0].time=}")
+        #print(times_dict)
+        return jsonify(times_dict)
 
     elif request.method == 'POST':
         if (user_time:= request.values.get('time')) is None:
@@ -86,11 +105,11 @@ def times():
             return 'Invalid time format'
 
         schedule_element = ScheduleTime(dispenser_id=dispenser.id,time=user_time)
-        #try:
-        db.session.add(schedule_element)
-        db.session.commit()
-        #except:
-        #    return 'database commit failure'
+        try:
+            db.session.add(schedule_element)
+            db.session.commit()
+        except:
+            return 'database commit failure'
         return 'POST success'
 
 
