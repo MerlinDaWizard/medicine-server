@@ -10,6 +10,8 @@ class datetimeJSONEncoder(JSONEncoder):
     def default(self, o):
         if type(o) == time:
             return o.isoformat()
+        elif type(o) == datetime:
+            return o.isoformat(sep=" ")
         else:
             return super().default(o)
 
@@ -30,7 +32,7 @@ class Dispenser(db.Model):
     latest_connection = sa.Column(sa.DateTime, nullable=False)
 
     def __repr__(self) -> str:
-        return f"<name {self.id}>"
+        return f"<id {self.id}>"
 
 class ScheduleTime(db.Model):
     __tablename__ = "schedule_time_table"
@@ -40,7 +42,7 @@ class ScheduleTime(db.Model):
     time = sa.Column(sa.Time, nullable=False)
 
     def __repr__(self) -> str:
-        return f"<name {self.id}>"
+        return f"<id {self.id}>"
     
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -74,6 +76,23 @@ def result():
     #con = sl.connect('data.db')
     data = request.form
     data.get('')
+
+@app.route('/usr', methods=['POST','GET'])
+def usr():
+    db.session: orm.scoping.scoped_session = db.session # Helps ide autocomplete
+    dispenser_or_err = check_login(request)
+    if type(dispenser_or_err) is str: # If it returns a string it is an error to be sent back
+        return dispenser_or_err
+    else:
+        dispenser = dispenser_or_err
+
+    if request.method == 'GET':
+        # Returns the latest time
+        return jsonify(dispenser.latest_connection)
+    elif request.method == 'POST':
+        # Throw away old account and generate a new one
+        pass
+
 
 @app.route('/times', methods=['POST','GET'])
 def times():
