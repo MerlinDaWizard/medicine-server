@@ -5,7 +5,8 @@ from datetime import datetime,time
 import sqlalchemy as sa
 from sqlalchemy import orm
 from typing import Union
-from dataclasses import dataclass
+import random
+
 class datetimeJSONEncoder(JSONEncoder):
     def default(self, o):
         if type(o) == time:
@@ -33,6 +34,9 @@ class Dispenser(db.Model):
 
     def __repr__(self) -> str:
         return f"<id {self.id}>"
+
+    def as_dict(self):
+       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 class ScheduleTime(db.Model):
     __tablename__ = "schedule_time_table"
@@ -80,18 +84,39 @@ def result():
 @app.route('/usr', methods=['POST','GET'])
 def usr():
     db.session: orm.scoping.scoped_session = db.session # Helps ide autocomplete
-    dispenser_or_err = check_login(request)
-    if type(dispenser_or_err) is str: # If it returns a string it is an error to be sent back
-        return dispenser_or_err
-    else:
-        dispenser = dispenser_or_err
 
     if request.method == 'GET':
-        # Returns the latest time
+        # Returns the latest time for the logged in account
+        dispenser_or_err = check_login(request)
+        if type(dispenser_or_err) is str: # If it returns a string it is an error to be sent back
+            return dispenser_or_err
+        else:
+            dispenser = dispenser_or_err
         return jsonify(dispenser.latest_connection)
+
     elif request.method == 'POST':
-        # Throw away old account and generate a new one
-        pass
+        # Generate new account and return data
+        # SQL Integer is 4 bytes therefor -2,147,483,648:2,147,483,647 (-2^31 : 2^31 - 1)
+        taken = True
+        while taken is True:
+            id = random.randint(-2_147_483_648,2_147_483_647)
+            if db.session.get(Dispenser, id) is None:
+                taken = False
+        
+        passkey = random.randbytes(5)
+        print(passkey)
+        string_version = passkey.hex()
+        print(string_version)
+        
+        new_dispenser = Dispenser(id=id,passkey=string_version,latest_connection=datetime.now())
+        try:
+            db.session.add(new_dispenser)
+            db.session.commit()
+        except:
+            return 'database commit failure'
+
+        return_data = {'id':hex(id),'passkey':string_version}
+        return jsonify(return_data)
 
 
 @app.route('/times', methods=['POST','GET'])
