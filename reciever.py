@@ -115,11 +115,11 @@ def usr():
         except:
             return 'database commit failure'
 
-        return_data = {'id':hex(id),'passkey':string_version}
+        return_data = {'id':f'{id:x}','passkey':string_version}
         return jsonify(return_data)
 
 
-@app.route('/times', methods=['POST','GET'])
+@app.route('/times', methods=['POST','GET','DELETE'])
 def times():
     db.session: orm.scoping.scoped_session = db.session # Helps ide autocomplete
     dispenser_or_err = check_login(request)
@@ -165,7 +165,21 @@ def times():
             db.session.commit()
         except:
             return 'database commit failure'
-        return 'POST success'
+        return 'success'
+    elif request.method == 'DELETE':
+        if (del_id:= request.values.get('delid')) is None:
+            return 'No time provided.'
+        
+        schedule = db.session.get(ScheduleTime, del_id)
+        if schedule and schedule.dispenser_id == dispenser.id:
+            try:
+                db.session.delete(schedule)
+                db.session.commit()
+            except:
+                return 'database commit failure'
+            return 'success'
+        else:
+            return 'Can\'t find time with that key'
 
 
 with app.app_context():
