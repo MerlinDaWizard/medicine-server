@@ -10,7 +10,7 @@ import random
 class datetimeJSONEncoder(JSONEncoder):
     def default(self, o):
         if type(o) == time:
-            return o.isoformat()
+            return f'{o.hour:02}' + ':' + f'{o.minute:02}'
         elif type(o) == datetime:
             return o.isoformat(sep=" ")
         else:
@@ -149,7 +149,7 @@ def times():
             times_dict.append(temp_dict)
             #print(f"{t[0].id=}")
             #print(f"{t[0].time=}")
-        #print(times_dict)
+        print(times_dict)
         return jsonify(times_dict)
 
     elif request.method == 'POST':
