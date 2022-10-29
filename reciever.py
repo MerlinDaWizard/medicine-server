@@ -189,7 +189,7 @@ def times():
             return 'No time provided', 400
         
         schedule = db.session.get(ScheduleTime, time_id)
-        if schedule and schedule.dispenser_id == dispenser.index:
+        if schedule and schedule.dispenser_id == dispenser.id:
             try:
                 schedule.time = time.fromisoformat(set_time)
                 db.session.add(schedule)
