@@ -120,7 +120,7 @@ def usr():
         return jsonify(return_data)
 
 
-@app.route('/times', methods=['POST','GET','DELETE'])
+@app.route('/times', methods=['POST','GET','DELETE','PUT'])
 def times():
     db.session: orm.scoping.scoped_session = db.session # Helps ide autocomplete
     dispenser_or_err, code = check_login(request)
@@ -181,7 +181,24 @@ def times():
             return 'success', 200
         else:
             return 'Can\'t find time with that key', 404
-
+    elif request.method == 'PUT':
+        if (time_id:= request.values.get('timeid')) is None:
+            return 'No timeid provided', 400
+        
+        if (set_time:= request.values.get('time')) is None:
+            return 'No time provided', 400
+        
+        schedule = db.session.get(ScheduleTime, time_id)
+        if schedule and schedule.dispenser_id == dispenser.index:
+            try:
+                schedule.time = time.fromisoformat(set_time)
+                db.session.add(schedule)
+                db.session.commit()
+            except:
+                return 'database commit failure', 500
+            return 'sucess', 200
+        else:
+            return 'Can\'t find time with that key'
 
 with app.app_context():
     db.create_all()
