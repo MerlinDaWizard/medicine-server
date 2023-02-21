@@ -1,17 +1,22 @@
 from flask import Flask, request, Request, jsonify
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime,time
+import datetime
 import sqlalchemy as sa
 from sqlalchemy import orm
 from typing import Union
 import random
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.combining import OrTrigger
+from apscheduler.triggers.cron import CronTrigger
+from flask import Flask
 
 class datetimeJSONEncoder(JSONEncoder):
     def default(self, o):
-        if type(o) == time:
+        print(type(o))
+        if isinstance(o,datetime.time):
             return f'{o.hour:02}' + ':' + f'{o.minute:02}'
-        elif type(o) == datetime:
+        elif isinstance(o,datetime.datetime):
             return o.isoformat(sep=" ")
         else:
             return super().default(o)
@@ -44,13 +49,22 @@ class ScheduleTime(db.Model):
     id = sa.Column(sa.Integer, primary_key=True)
     dispenser_id = sa.Column(sa.Integer, sa.ForeignKey("dispenser_table.id"))
     time = sa.Column(sa.Time, nullable=False)
-
+    done = sa.Column(sa.Boolean, nullable = False, default = False)
     def __repr__(self) -> str:
         return f"<id {self.id}>"
     
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-       
+
+def reset_done():
+    # Resets the done column of each record at midnight.
+    with app.app_context():
+        db.session: orm.scoping.scoped_session = db.session # Helps ide autocomplete
+        db.session.query()
+        ScheduleTime.query.update({ScheduleTime.done: False})
+        db.session.commit()
+        print("Reset times!")
+
 def check_login(request: Request) -> Union[Dispenser,str]:
     '''Check info provided in request is correct to login'''
     # Check if users request has the dispenser id
@@ -109,7 +123,7 @@ def usr():
         string_version = passkey.hex()
         print(string_version)
         
-        new_dispenser = Dispenser(id=id,passkey=string_version,latest_connection=datetime.now())
+        new_dispenser = Dispenser(id=id,passkey=string_version,latest_connection=datetime.datetime.now())
         try:
             db.session.add(new_dispenser)
             db.session.commit()
@@ -131,26 +145,41 @@ def times():
 
     if request.method == 'GET':
         # If its a request from the physical hardware, mark the latest connection in the database
-        if request.values.get('type') == 'automatic':
-            dispenser.latest_connection = datetime.now() # May be an issue with timezones here
+        if request.values.get('type') == 'embedded':
+            dispenser.latest_connection = datetime.datetime.now() # May be an issue with timezones here
             try:
                 db.session.add(dispenser)
                 db.session.commit()
             except:
                 print("ERROR: cannot commit latest connection info")
 
-        statement = sa.select(ScheduleTime).filter_by(dispenser_id=dispenser.id)
-        times = db.session.execute(statement).all()
-        #print(type(times))
-        times_dict = []
-        for t in times:
-            temp_dict = t[0].as_dict()
-            temp_dict.pop('dispenser_id')
-            times_dict.append(temp_dict)
-            #print(f"{t[0].id=}")
-            #print(f"{t[0].time=}")
-        print(times_dict)
-        return jsonify(times_dict)
+            statement = sa.select(ScheduleTime).filter_by(dispenser_id=dispenser.id).order_by(sa.asc(ScheduleTime.time))
+            times = db.session.execute(statement).all()
+            next_time = None
+            current_time = datetime.datetime.now().time()
+            print(current_time)
+            for i,t in enumerate(times):
+                time_obj = t[0].time
+                if i == 0 or (current_time < time_obj and time_obj < next_time):
+                    next_time = time_obj
+                print(t[0].time)
+                print(type(t[0].time))
+            
+            print(next_time)
+            return 'ok'
+        else:
+            statement = sa.select(ScheduleTime).filter_by(dispenser_id=dispenser.id)
+            times = db.session.execute(statement).all()
+            #print(type(times))
+            times_dict = []
+            for t in times:
+                temp_dict = t[0].as_dict()
+                temp_dict.pop('dispenser_id')
+                times_dict.append(temp_dict)
+                #print(f"{t[0].id=}")
+                #print(f"{t[0].time=}")
+            print(times_dict)
+            return jsonify(times_dict)
 
     elif request.method == 'POST':
         if (user_time:= request.values.get('time')) is None:
@@ -160,7 +189,7 @@ def times():
         except:
             return 'Invalid time format', 400
 
-        schedule_element = ScheduleTime(dispenser_id=dispenser.id,time=user_time)
+        schedule_element = ScheduleTime(dispenser_id=dispenser.id,time=user_time,done=False)
         try:
             db.session.add(schedule_element)
             db.session.commit()
@@ -199,6 +228,16 @@ def times():
             return 'sucess', 200
         else:
             return 'Can\'t find time with that key'
+
+@app.route('/micro', methods=['GET'])
+def time():
+    db.session: orm.scoping.scoped_session = db.session # Helps ide autocomplete
+    return str(ceil(self_time.time())) # Round up
+
+sched = BackgroundScheduler(daemon=True)
+trigger = OrTrigger([CronTrigger(hour=0, minute=0)])
+sched.add_job(reset_done,trigger)
+sched.start()
 
 with app.app_context():
     db.create_all()
