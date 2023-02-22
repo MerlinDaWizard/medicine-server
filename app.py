@@ -1,4 +1,4 @@
-from flask import Flask, request, Request, jsonify
+from flask import Flask, request, Request, jsonify, json
 from flask.json import JSONEncoder
 from flask_sqlalchemy import SQLAlchemy
 import datetime
@@ -68,6 +68,7 @@ def reset_done():
 def check_login(request: Request) -> Union[Dispenser,str]:
     '''Check info provided in request is correct to login'''
     # Check if users request has the dispenser id
+    print(request.values)
     if (str_id := request.values.get('id')) is None:
         return 'No ID provided', 400
     # Check if users request has the passkey
@@ -153,20 +154,38 @@ def times():
             except:
                 print("ERROR: cannot commit latest connection info")
 
-            statement = sa.select(ScheduleTime).filter_by(dispenser_id=dispenser.id).order_by(sa.asc(ScheduleTime.time))
+            statement = sa.select(ScheduleTime).filter_by(dispenser_id=dispenser.id).order_by(sa.desc(ScheduleTime.time))
             times = db.session.execute(statement).all()
             next_time = None
             current_time = datetime.datetime.now().time()
             print(current_time)
+            next_day_time = None
+            spin = False
             for i,t in enumerate(times):
                 time_obj = t[0].time
-                if i == 0 or (current_time < time_obj and time_obj < next_time):
+                next_day_time = time_obj
+                if current_time >= time_obj and t[0].done is False:
+                    t[0].done = True
+                    spin = True
+                    db.session.add(t[0])
+                # Calculate next time
+                if (current_time < time_obj and (next_time is None or time_obj < next_time)):
                     next_time = time_obj
                 print(t[0].time)
                 print(type(t[0].time))
             
+            if spin is True:
+                db.session.commit()
+            
+            if next_time is None and next_day_time is None:
+                return f"{int(spin)},{current_time.hour:02}:{current_time.minute:02},Unset"
+            elif next_time is None:
+                next_time = next_day_time
+            
             print(next_time)
-            return 'ok'
+            print(spin)
+
+            return f"{int(spin)},{current_time.hour:02}:{current_time.minute:02},{next_time.hour:02}:{next_time.minute:02}"
         else:
             statement = sa.select(ScheduleTime).filter_by(dispenser_id=dispenser.id)
             times = db.session.execute(statement).all()
